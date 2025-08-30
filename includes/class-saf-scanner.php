@@ -19,6 +19,7 @@ class SAF_Scanner {
         $issues = array_merge($issues, $this->check_file_permissions());
         $issues = array_merge($issues, $this->check_security_headers());
         $issues = array_merge($issues, $this->check_table_prefix());
+        $issues = array_merge($issues, $this->check_version_exposure());
 
         $summary = sprintf('%d potential issues found', count($issues));
 
@@ -264,6 +265,36 @@ class SAF_Scanner {
                 'change_table_prefix'
             );
         }
+        return $issues;
+    }
+
+    private function check_version_exposure() {
+        $issues = [];
+
+        // Check whether wp_generator is active (i.e., not removed)
+        // We can detect by checking if someone already removed the action.
+        if (has_action('wp_head', 'wp_generator') !== false) {
+            $issues[] = $this->issue(
+                'wp_version_meta_exposed',
+                'WordPress version exposed in HTML',
+                'medium',
+                'Your site may output the WordPress version via the generator meta tag.',
+                'hide_wp_version_meta'
+            );
+        }
+
+        // Check if readme.html exists in the ABSPATH and is readable (publicly likely accessible)
+        $readme_path = ABSPATH . 'readme.html';
+        if (file_exists($readme_path)) {
+            $issues[] = $this->issue(
+                'readme_html_present',
+                'readme.html is present and may expose version',
+                'low',
+                'The default WordPress readme.html file can reveal your version to scanners.',
+                'remove_readme_html'
+            );
+        }
+
         return $issues;
     }
 

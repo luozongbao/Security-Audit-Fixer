@@ -35,6 +35,10 @@ class SAF_Fixer {
             case 'change_table_prefix':
                 $desired = isset($args['new_prefix']) ? (string) $args['new_prefix'] : '';
                 return $this->change_table_prefix($desired);
+            case 'hide_wp_version_meta':
+                return $this->hide_wp_version_meta();
+            case 'remove_readme_html':
+                return $this->remove_readme_html();
             default:
                 return false;
         }
@@ -286,6 +290,31 @@ class SAF_Fixer {
         return true;
     }
 
+    private function hide_wp_version_meta() {
+        // Persist our intent in options so it applies on every request
+        saf_update_option('hide_wp_version_meta', '1');
+
+        // Apply immediately in this request too
+        add_action('init', function(){
+            remove_action('wp_head', 'wp_generator');
+        });
+
+        return true;
+    }
+
+    private function remove_readme_html() {
+        $path = ABSPATH . 'readme.html';
+        if (file_exists($path)) {
+            if (!is_writable($path)) {
+                // Try to rename to prevent public access if deletion not permitted
+                $renamed = @rename($path, ABSPATH . 'readme.removed.html');
+                return (bool) $renamed;
+            }
+            return @unlink($path);
+        }
+        return true; // already removed
+    }
+
 }
 
 // Global hooks tied to options set above
@@ -317,3 +346,20 @@ add_action('send_headers', function(){
     header('Referrer-Policy: no-referrer-when-downgrade');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 });
+
+// Enforce hiding generator meta if setting is on
+add_action('init', function () {
+    // Remove version in HTML head
+    remove_action('wp_head', 'wp_generator');
+
+    // Remove REST API discovery link (sometimes used as a clue)
+    remove_action('wp_head', 'rest_output_link_wp_head');
+    remove_action('template_redirect', 'rest_output_link_header', 11);
+
+    // Remove RSD and WLW links
+    remove_action('wp_head', 'rsd_link');
+    remove_action('wp_head', 'wlwmanifest_link');
+}, 0);
+
+// Also ensure the generator tag is blank if some themes/plugins force it:
+add_filter('the_generator', '__return_empty_string', 99);
