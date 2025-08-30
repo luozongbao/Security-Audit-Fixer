@@ -20,6 +20,7 @@ class SAF_Scanner {
         $issues = array_merge($issues, $this->check_security_headers());
         $issues = array_merge($issues, $this->check_table_prefix());
         $issues = array_merge($issues, $this->check_version_exposure());
+        $issues = array_merge($issues, $this->check_exposed_files());
 
         $summary = sprintf('%d potential issues found', count($issues));
 
@@ -296,6 +297,75 @@ class SAF_Scanner {
         }
 
         return $issues;
+    }
+
+    private function check_exposed_files() {
+        $issues = [];
+
+        // List of paths to probe relative to site URL.
+        // Each entry: [path, fix_key, description, severity]
+        $targets = [
+            ['readme.html',               'remove_readme_html',           'Readme file reveals version and environment.', 'low'],
+            ['license.txt',               'remove_license_txt',           'License text can reveal WordPress version.',    'low'],
+            ['wp-admin/install.php',      'remove_install_script',        'Old installer should not be accessible.',       'medium'],
+            ['wp-admin/upgrade.php',      'remove_upgrade_script',        'Upgrade script should not be accessible.',      'medium'],
+            ['wp-content/debug.log',      'handle_debug_log',             'Debug log may contain sensitive data.',         'high'],
+            // Blocking wp-config.php via .htaccess only; do NOT fetch its content, just check status code cautiously.
+            ['wp-config.php',             'block_wp_config_htaccess',     'wp-config.php must never be accessible.',       'critical'],
+            // You can add more like: xmlrpc.php (if disabled), .git/, composer.json, etc.
+        ];
+
+        foreach ($targets as $t) {
+            list($path, $fix_key, $desc, $severity) = $t;
+            $status = $this->http_head_or_get_status($path);
+            if ($this->is_potentially_exposed($path, $status)) {
+                $issues[] = $this->issue(
+                    'exposed_' . sanitize_title($path),
+                    "Exposed file: $path",
+                    $severity,
+                    $desc . " HTTP status: " . ($status ?? 'unknown'),
+                    $fix_key
+                );
+            }
+        }
+
+        return $issues;
+    }
+
+    private function http_head_or_get_status($relative) {
+        // Build URL from site_url (front-end)
+        $url = trailingslashit(site_url()) . ltrim($relative, '/');
+        // Try HEAD first, fallback to GET
+        $args = [
+            'timeout' => 10,
+            'redirection' => 3,
+            'sslverify' => false, // in case local cert issues
+            'headers' => [
+                'User-Agent' => 'SAF-Scanner'
+            ],
+        ];
+        $res = wp_remote_head($url, $args);
+        if (is_wp_error($res) || empty($res['response']['code'])) {
+            $res = wp_remote_get($url, $args);
+        }
+        if (is_wp_error($res)) return null;
+        return (int) wp_remote_retrieve_response_code($res);
+    }
+
+    private function is_potentially_exposed($path, $status_code) {
+        if ($status_code === null) return false;
+        // Consider 200 OK as exposed.
+        // Also consider 206 Partial or 403 (for wp-config.php 403 may be fine; we won't flag if 403).
+        if ($path === 'wp-config.php') {
+            // 200 is bad; 403/401/404 are acceptable.
+            return $status_code === 200;
+        }
+        if ($path === 'wp-content/debug.log') {
+            // 200 means readable; 403 also suggests readable existence; both should be flagged.
+            return in_array($status_code, [200, 206, 403], true);
+        }
+        // For others, flag 200/206.
+        return in_array($status_code, [200, 206], true);
     }
 
 }

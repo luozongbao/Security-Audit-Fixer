@@ -39,6 +39,16 @@ class SAF_Fixer {
                 return $this->hide_wp_version_meta();
             case 'remove_readme_html':
                 return $this->remove_readme_html();
+            case 'remove_license_txt':
+                return $this->remove_file_in_root('license.txt');
+            case 'remove_install_script':
+                return $this->remove_file('wp-admin/install.php');
+            case 'remove_upgrade_script':
+                return $this->remove_file('wp-admin/upgrade.php');
+            case 'handle_debug_log':
+                return $this->handle_debug_log();
+            case 'block_wp_config_htaccess':
+                return $this->block_wp_config_htaccess();
             default:
                 return false;
         }
@@ -313,6 +323,71 @@ class SAF_Fixer {
             return @unlink($path);
         }
         return true; // already removed
+    }
+
+    private function remove_file_in_root($filename) {
+        $path = ABSPATH . ltrim($filename, '/');
+        if (!file_exists($path)) return true;
+        if (!is_writable($path)) return false;
+        return @unlink($path);
+    }
+
+    private function remove_file($relative) {
+        $path = ABSPATH . ltrim($relative, '/');
+        if (!file_exists($path)) return true;
+        if (!is_writable($path)) return false;
+        return @unlink($path);
+    }
+
+    private function handle_debug_log() {
+        // 1) Delete or rotate wp-content/debug.log if exists
+        $path = WP_CONTENT_DIR . '/debug.log';
+        if (file_exists($path)) {
+            // Try to rotate with timestamp; if not writable, try to truncate
+            if (is_writable($path)) {
+                $rotated = @rename($path, WP_CONTENT_DIR . '/debug-' . date('Ymd-His') . '.log');
+                if (!$rotated) {
+                    // Truncate if rename failed
+                    @file_put_contents($path, '');
+                }
+            } else {
+                // If not writable, we cannot fix; return false so UI shows failure
+                return false;
+            }
+        }
+        // 2) Disable WP_DEBUG_LOG and WP_DEBUG in wp-config.php if they are enabled
+        $wp_config = ABSPATH . 'wp-config.php';
+        if (is_writable($wp_config)) {
+            $content = file_get_contents($wp_config);
+            // Force WP_DEBUG_LOG false
+            $content = preg_replace("/define\s*\(\s*'WP_DEBUG_LOG'\s*,\s*true\s*\)\s*;/", "define('WP_DEBUG_LOG', false);", $content);
+            if (strpos($content, "define('WP_DEBUG_LOG'") === false) {
+                $content .= "\nif (!defined('WP_DEBUG_LOG')) define('WP_DEBUG_LOG', false);\n";
+            }
+            // Optionally disable WP_DEBUG to prevent new logs on production
+            $content = preg_replace("/define\s*\(\s*'WP_DEBUG'\s*,\s*true\s*\)\s*;/", "define('WP_DEBUG', false);", $content);
+            if (strpos($content, "define('WP_DEBUG'") === false) {
+                $content .= "\nif (!defined('WP_DEBUG')) define('WP_DEBUG', false);\n";
+            }
+            $ok = file_put_contents($wp_config, $content);
+            if ($ok === false) return false;
+        }
+        return true;
+    }
+
+    private function block_wp_config_htaccess() {
+        // Only effective on Apache. We’ll add a protection stanza to the root .htaccess.
+        $ht = ABSPATH . '.htaccess';
+        $rule = "\n# SAF: protect wp-config.php\n<Files wp-config.php>\n  Require all denied\n</Files>\n";
+        if (!file_exists($ht)) {
+            // Create new .htaccess if root is writable
+            if (!is_writable(ABSPATH)) return false;
+            return file_put_contents($ht, $rule) !== false;
+        }
+        if (!is_writable($ht)) return false;
+        $content = file_get_contents($ht);
+        if (strpos($content, '<Files wp-config.php>') !== false) return true; // already protected
+        return file_put_contents($ht, $content . $rule) !== false;
     }
 
 }
