@@ -1,0 +1,27 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+function saf_capability() {
+    return 'manage_options';
+}
+
+function saf_verify_admin_action($nonce_action, $nonce_name = '_wpnonce') {
+    if (!current_user_can(saf_capability())) return false;
+    if (!isset($_REQUEST[$nonce_name])) return false;
+    return wp_verify_nonce(sanitize_text_field($_REQUEST[$nonce_name]), $nonce_action);
+}
+
+function saf_get_option($key, $default = null) {
+    $opts = get_option('saf_settings', []);
+    return isset($opts[$key]) ? $opts[$key] : $default;
+}
+
+function saf_update_option($key, $value) {
+    $opts = get_option('saf_settings', []);
+    $opts[$key] = $value;
+    update_option('saf_settings', $opts);
+}
+
+function saf_bool($val) {
+    return filter_var($val, FILTER_VALIDATE_BOOLEAN);
+}

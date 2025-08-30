@@ -1,0 +1,8 @@
+.wrap .button { margin: 6px 0; }
+
+.saf-modal { position: fixed; top:0; left:0; right:0; bottom:0; z-index: 100000; }
+.saf-modal-backdrop { position:absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4); }
+.saf-modal-content {
+  position: relative; z-index: 100001; background:#fff; padding:20px; border-radius:6px;
+  width: 500px; max-width: calc(100% - 40px); margin: 10% auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
