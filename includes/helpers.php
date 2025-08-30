@@ -25,3 +25,16 @@ function saf_update_option($key, $value) {
 function saf_bool($val) {
     return filter_var($val, FILTER_VALIDATE_BOOLEAN);
 }
+
+function saf_server_is_apache() {
+    if (function_exists('apache_get_modules')) return true;
+    $ss = isset($_SERVER['SERVER_SOFTWARE']) ? strtolower($_SERVER['SERVER_SOFTWARE']) : '';
+    return strpos($ss, 'apache') !== false;
+}
+
+function saf_server_is_nginx() {
+    $ss = isset($_SERVER['SERVER_SOFTWARE']) ? strtolower($_SERVER['SERVER_SOFTWARE']) : '';
+    return strpos($ss, 'nginx') !== false;
+}
+
+

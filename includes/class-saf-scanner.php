@@ -313,6 +313,8 @@ class SAF_Scanner {
             // Blocking wp-config.php via .htaccess only; do NOT fetch its content, just check status code cautiously.
             ['wp-config.php',             'block_wp_config_htaccess',     'wp-config.php must never be accessible.',       'critical'],
             // You can add more like: xmlrpc.php (if disabled), .git/, composer.json, etc.
+            ['.env',                      'remove_env',                   '.env often contains credentials.',              'critical'],
+            ['phpinfo.php',               'remove_phpinfo',               'phpinfo.php exposes sensitive server details.', 'critical'],
         ];
 
         foreach ($targets as $t) {

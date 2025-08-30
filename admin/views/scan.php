@@ -20,6 +20,13 @@ if ($last && !empty($last->issues)) {
     <button class="button">Run Full Scan</button>
   </form>
 
+  <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin: 12px 0;">
+    <?php wp_nonce_field('saf_apply_fix'); ?>
+    <input type="hidden" name="action" value="saf_apply_fix" />
+    <input type="hidden" name="fix_key" value="saf_fix_all_exposed" />
+    <button class="button button-secondary">Fix All Exposed Files</button>
+  </form>
+
   <h2>Latest Results</h2>
   <?php if (!$last): ?>
     <p>No scans yet.</p>
@@ -76,3 +83,5 @@ if ($last && !empty($last->issues)) {
     </div>
     <div class="saf-modal-backdrop"></div>
   </div>
+
+  

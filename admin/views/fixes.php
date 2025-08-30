@@ -31,6 +31,7 @@
     </form>
   <?php endforeach; ?>
 
+
   <?php if (get_user_by('login', 'admin')): ?>
     <button id="saf-rename-admin-btn" class="button button-primary">Rename "admin" User</button>
   <?php endif; ?>
@@ -76,3 +77,26 @@
     <div class="saf-modal-backdrop"></div>
   </div>
 </div>
+
+<!-- Nginx advisory modal -->
+<div id="saf-server-advice-modal" class="saf-modal" style="display:none;">
+  <div class="saf-modal-content">
+    <h2>Action Required on Your Server</h2>
+    <div id="saf-server-advice-body" style="white-space:pre-wrap; font-family:monospace;"></div>
+    <div style="margin-top:12px;">
+      <button type="button" id="saf-server-advice-close" class="button button-primary">OK, I’ll add this</button>
+    </div>
+  </div>
+  <div class="saf-modal-backdrop"></div>
+</div>
+
+
+<!-- Fix All Exposed Files button (if not already added) -->
+<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin: 12px 0;">
+  <?php wp_nonce_field('saf_apply_fix'); ?>
+  <input type="hidden" name="action" value="saf_apply_fix" />
+  <input type="hidden" name="fix_key" value="saf_fix_all_exposed" />
+  <button class="button button-secondary">Fix All Exposed Files</button>
+</form>
+
+

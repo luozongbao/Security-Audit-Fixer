@@ -146,9 +146,53 @@ class SAF_Admin {
             exit;
         }
 
+        if ($fix_key === 'saf_fix_all_exposed') {
+            // Define a set of safe, non-destructive fixes
+            $bulk = [
+                'remove_readme_html',
+                'remove_license_txt',
+                'remove_install_script',
+                'remove_upgrade_script',
+                'handle_debug_log',
+                'remove_phpinfo',
+                'remove_env',
+                // wp-config.php is special; attempt auto for Apache, else show advisory
+                'block_wp_config_htaccess'
+            ];
+            $fixer = new SAF_Fixer();
+            $need_advice = false;
+            $all_ok = true;
+            foreach ($bulk as $fx) {
+                $res = $fixer->apply_fix($fx, []);
+                if ($res === 'NEED_SERVER_RULE') {
+                    $need_advice = true;
+                } elseif (!$res) {
+                    $all_ok = false;
+                }
+            }
+            if ($need_advice) {
+                wp_redirect(add_query_arg(['page' => 'saf_fixes', 'saf_server_advice' => 'block_wp_config_htaccess'], admin_url('admin.php')));
+                exit;
+            }
+            wp_redirect(add_query_arg(['page' => 'saf_fixes', 'applied' => $all_ok ? 1 : 0], admin_url('admin.php')));
+            exit;
+        }
+
         // Default handling
-        $ok = $fixer->apply_fix($fix_key, []);
-        SAF_Logger::log('Fix applied', ['fix_key' => $fix_key, 'ok' => $ok]);
+
+        $ok = $fixer->apply_fix($fix_key, $args ?? []);
+
+        if ($ok === 'NEED_SERVER_RULE') {
+            // Send server advisory params
+            $url = add_query_arg([
+                'page' => 'saf_fixes',
+                'saf_server_advice' => $fix_key,
+            ], admin_url('admin.php'));
+            wp_redirect($url);
+            exit;
+        }
+
+        SAF_Logger::log('Fix applied', ['fix_key' => $fix_key, 'ok' => (bool)$ok]);
         wp_redirect(add_query_arg(['page' => 'saf_fixes', 'applied' => $ok ? 1 : 0], admin_url('admin.php')));
         exit;
     }

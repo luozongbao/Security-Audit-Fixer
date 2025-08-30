@@ -69,6 +69,56 @@
       });
     }
 
+
+    // Server advisory modal
+    var $advModal = $('#saf-server-advice-modal');
+    var $advBody = $('#saf-server-advice-body');
+    var $advClose = $('#saf-server-advice-close');
+
+    function adviceText(fixKey) {
+      var snippets = {
+        'block_wp_config_htaccess': {
+          title: 'Protect wp-config.php on Nginx',
+          nginx: [
+            'location = /wp-config.php {',
+            '    deny all;',
+            '}'
+          ].join('\n'),
+          apache: [
+            '<Files wp-config.php>',
+            '  Require all denied',
+            '</Files>'
+          ].join('\n')
+        }
+        // You can add more advisories if you plan server-rule fixes for other files
+      };
+      var s = snippets[fixKey] || null;
+      if (!s) return 'Please add an equivalent deny rule on your web server for the requested file.';
+      var msg = s.title + '\n\nNginx:\n' + s.nginx + '\n\nApache (.htaccess):\n' + s.apache;
+      return msg;
+    }
+
+    function openAdvice(fixKey) {
+      $advBody.text(adviceText(fixKey));
+      $advModal.show();
+    }
+
+    if ($advClose.length) {
+      $advClose.on('click', function(){ $advModal.hide(); });
+    }
+
+    // Read query param to trigger advisory
+    var params = new URLSearchParams(window.location.search);
+    if (params.has('saf_server_advice')) {
+      var key = params.get('saf_server_advice');
+      openAdvice(key);
+      // Clean the URL
+      if (window.history && history.replaceState) {
+        params.delete('saf_server_advice');
+        history.replaceState(null, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+      }
+    }
+
     // Read server errors from query string to re-open modals
     var params = new URLSearchParams(window.location.search);
     if (params.has('saf_rename_error')) {
@@ -90,3 +140,5 @@
     }
   });
 })(jQuery);
+
+

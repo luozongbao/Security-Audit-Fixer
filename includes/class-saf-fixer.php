@@ -49,6 +49,25 @@ class SAF_Fixer {
                 return $this->handle_debug_log();
             case 'block_wp_config_htaccess':
                 return $this->block_wp_config_htaccess();
+            case 'remove_phpinfo':
+                return $this->remove_file('phpinfo.php');
+            case 'remove_env':
+                return $this->remove_file('.env');
+            case 'block_wp_config_htaccess':
+                // If Apache, apply .htaccess automatically; otherwise, return a code that UI can use.
+                if (saf_server_is_apache()) {
+                    return $this->block_wp_config_htaccess();
+                } else {
+                    // Signal UI to show Nginx advisory modal by returning a special marker
+                    return 'NEED_SERVER_RULE';
+                }
+            case 'block_readme_htaccess':
+                // example if you want similar behavior for readme; not required if you delete the file
+                if (saf_server_is_apache()) {
+                    return $this->block_file_htaccess('readme.html');
+                } else {
+                    return 'NEED_SERVER_RULE';
+                }
             default:
                 return false;
         }
@@ -387,6 +406,20 @@ class SAF_Fixer {
         if (!is_writable($ht)) return false;
         $content = file_get_contents($ht);
         if (strpos($content, '<Files wp-config.php>') !== false) return true; // already protected
+        return file_put_contents($ht, $content . $rule) !== false;
+    }
+
+    private function block_file_htaccess($filename) {
+        $ht = ABSPATH . '.htaccess';
+        $fname = basename($filename);
+        $rule = "\n# SAF: protect {$fname}\n<Files {$fname}>\n  Require all denied\n</Files>\n";
+        if (!file_exists($ht)) {
+            if (!is_writable(ABSPATH)) return false;
+            return file_put_contents($ht, $rule) !== false;
+        }
+        if (!is_writable($ht)) return false;
+        $content = file_get_contents($ht);
+        if (strpos($content, "<Files {$fname}>") !== false) return true;
         return file_put_contents($ht, $content . $rule) !== false;
     }
 
