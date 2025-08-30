@@ -15,7 +15,6 @@
     'add_htaccess_no_indexes' => 'Disable Directory Indexing (.htaccess)',
     'disable_xmlrpc' => 'Disable XML-RPC',
     'force_ssl_admin' => 'Force SSL for Admin',
-    // 'rename_admin_user' will be handled with a popup below
     'enable_strong_password_policy' => 'Enforce Strong Passwords',
     'harden_wpconfig_perms' => 'Harden wp-config.php Permissions',
     'harden_htaccess_perms' => 'Harden .htaccess Permissions',
@@ -32,10 +31,10 @@
     </form>
   <?php endforeach; ?>
 
-  <!-- Special button for renaming admin -->
   <?php if (get_user_by('login', 'admin')): ?>
     <button id="saf-rename-admin-btn" class="button button-primary">Rename "admin" User</button>
   <?php endif; ?>
+
 
   <!-- Modal markup -->
   <div id="saf-rename-admin-modal" class="saf-modal" style="display:none;">
@@ -52,6 +51,25 @@
         <div style="margin-top:12px;">
           <button type="submit" class="button button-primary">Confirm Rename</button>
           <button type="button" id="saf-rename-cancel" class="button">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+  <!-- Change prefix modal -->
+  <div id="saf-change-prefix-modal" class="saf-modal" style="display:none;">
+    <div class="saf-modal-content">
+      <h2>Change Table Prefix</h2>
+      <p>Enter a new table prefix. It must start with a letter, include only letters/numbers/underscores, and end with an underscore. Example: site123_</p>
+      <form id="saf-change-prefix-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <?php wp_nonce_field('saf_apply_fix'); ?>
+        <input type="hidden" name="action" value="saf_apply_fix" />
+        <input type="hidden" name="fix_key" value="change_table_prefix" />
+        <label for="saf-new-prefix"><strong>New prefix</strong></label><br/>
+        <input type="text" id="saf-new-prefix" name="new_prefix" required placeholder="e.g., site123_" style="width: 300px;" />
+        <div id="saf-prefix-error" style="color:#b32d2e; margin-top:6px; display:none;"></div>
+        <div style="margin-top:12px;">
+          <button type="submit" class="button button-primary">Confirm Change</button>
+          <button type="button" id="saf-prefix-cancel" class="button">Cancel</button>
         </div>
       </form>
     </div>

@@ -66,27 +66,26 @@ class SAF_Admin {
         if (!saf_verify_admin_action('saf_apply_fix')) wp_die(__('Invalid request', 'security-audit-fixer'));
 
         $fix_key = isset($_POST['fix_key']) ? sanitize_text_field($_POST['fix_key']) : '';
-        $new_username_raw = isset($_POST['new_username']) ? (string) wp_unslash($_POST['new_username']) : '';
-        $new_username = sanitize_user($new_username_raw, true);
-
         $fixer = new SAF_Fixer();
 
-        // Special handling for rename: enforce server-side rules; do NOT fallback-generate.
+        // Rename admin user flow
         if ($fix_key === 'rename_admin_user') {
+            $new_username_raw = isset($_POST['new_username']) ? (string) wp_unslash($_POST['new_username']) : '';
+            $new_username = sanitize_user($new_username_raw, true);
+
             $error = '';
             if (empty($new_username)) {
                 $error = __('Please provide a valid username.', 'security-audit-fixer');
             } elseif (strtolower($new_username) === 'admin') {
                 $error = __('New username cannot be “admin”.', 'security-audit-fixer');
             } elseif ($new_username !== $new_username_raw) {
-                // sanitize_user stripped/changed chars
                 $error = __('Username contains invalid characters. Allowed: letters, numbers, and . _ - @', 'security-audit-fixer');
             } elseif (username_exists($new_username)) {
                 $error = __('That username is already taken. Please choose another.', 'security-audit-fixer');
             }
 
             if ($error) {
-                SAF_Logger::log('Rename admin validation failed', ['new_username' => '[provided]', 'error' => $error]);
+                SAF_Logger::log('Rename admin validation failed', ['error' => $error]);
                 $url = add_query_arg([
                     'page' => 'saf_fixes',
                     'applied' => 0,
@@ -103,7 +102,51 @@ class SAF_Admin {
             exit;
         }
 
-        // Default handling for other fixes
+        // Change table prefix flow
+        if ($fix_key === 'change_table_prefix') {
+            $new_prefix_raw = isset($_POST['new_prefix']) ? (string) wp_unslash($_POST['new_prefix']) : '';
+            $new_prefix = trim($new_prefix_raw);
+
+            // Validation: start letter, allowed chars, ends with underscore, not wp_
+            $error = '';
+            if ($new_prefix === '') {
+                $error = __('Please provide a new table prefix.', 'security-audit-fixer');
+            } elseif (strtolower($new_prefix) === 'wp_') {
+                $error = __('New table prefix cannot be "wp_".', 'security-audit-fixer');
+            } elseif (!preg_match('/^[A-Za-z][A-Za-z0-9_]*_$/', $new_prefix)) {
+                $error = __('Prefix must start with a letter, contain only letters/numbers/underscores, and end with an underscore.', 'security-audit-fixer');
+            }
+
+            if ($error) {
+                SAF_Logger::log('Change table prefix validation failed', ['error' => $error]);
+                $url = add_query_arg([
+                    'page' => 'saf_fixes',
+                    'applied' => 0,
+                    'saf_prefix_error' => rawurlencode($error),
+                    'saf_new_prefix' => rawurlencode($new_prefix_raw),
+                ], admin_url('admin.php'));
+                wp_redirect($url);
+                exit;
+            }
+
+            $ok = $fixer->apply_fix($fix_key, ['new_prefix' => $new_prefix]);
+            SAF_Logger::log('Fix applied', ['fix_key' => $fix_key, 'ok' => $ok]);
+            if (!$ok) {
+                $url = add_query_arg([
+                    'page' => 'saf_fixes',
+                    'applied' => 0,
+                    'saf_prefix_error' => rawurlencode(__('Failed to change table prefix. See logs and ensure backups.', 'security-audit-fixer')),
+                    'saf_new_prefix' => rawurlencode($new_prefix_raw),
+                ], admin_url('admin.php'));
+                wp_redirect($url);
+                exit;
+            }
+
+            wp_redirect(add_query_arg(['page' => 'saf_fixes', 'applied' => 1], admin_url('admin.php')));
+            exit;
+        }
+
+        // Default handling
         $ok = $fixer->apply_fix($fix_key, []);
         SAF_Logger::log('Fix applied', ['fix_key' => $fix_key, 'ok' => $ok]);
         wp_redirect(add_query_arg(['page' => 'saf_fixes', 'applied' => $ok ? 1 : 0], admin_url('admin.php')));

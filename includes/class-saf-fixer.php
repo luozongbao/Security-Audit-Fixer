@@ -32,6 +32,9 @@ class SAF_Fixer {
                 return $this->update_all_plugins();
             case 'update_all_themes':
                 return $this->update_all_themes();
+            case 'change_table_prefix':
+                $desired = isset($args['new_prefix']) ? (string) $args['new_prefix'] : '';
+                return $this->change_table_prefix($desired);
             default:
                 return false;
         }
@@ -176,6 +179,113 @@ class SAF_Fixer {
         $result = $upgrader->bulk_upgrade(array_keys($updates->response));
         return is_array($result);
     }
+
+    private function change_table_prefix($new_prefix) {
+        global $wpdb;
+
+        $new_prefix_raw = (string) $new_prefix;
+        $new_prefix = trim($new_prefix_raw);
+
+        // Validation: start with letter, only [A-Za-z0-9_], end with underscore, not 'wp_'
+        if ($new_prefix === '' || strtolower($new_prefix) === 'wp_') return false;
+        if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*_$/', $new_prefix)) return false;
+
+        $old_prefix = $wpdb->prefix;
+        if ($new_prefix === $old_prefix) return false;
+
+        // Get all WordPress tables with the old prefix
+        $tables = $wpdb->get_col($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $wpdb->esc_like($old_prefix) . '%'
+        ));
+
+        if (empty($tables)) return false;
+
+        // Collision check: ensure no table already exists with the new prefix names
+        foreach ($tables as $old_table) {
+            $suffix = substr($old_table, strlen($old_prefix));
+            $new_table = $new_prefix . $suffix;
+            $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $new_table));
+            if ($exists) {
+                // Collision: abort to avoid overwriting
+                return false;
+            }
+        }
+
+        // Begin transactional-ish sequence where possible
+        // Note: MySQL transactions may not apply globally if tables are MyISAM. We proceed carefully.
+        $renamed = [];
+        foreach ($tables as $old_table) {
+            $suffix = substr($old_table, strlen($old_prefix));
+            $new_table = $new_prefix . $suffix;
+            $sql = "RENAME TABLE `$old_table` TO `$new_table`";
+            $ok = $wpdb->query($sql);
+            if ($ok === false) {
+                // Attempt rollback
+                foreach (array_reverse($renamed) as $pair) {
+                    $wpdb->query("RENAME TABLE `{$pair['new']}` TO `{$pair['old']}`");
+                }
+                return false;
+            }
+            $renamed[] = ['old' => $old_table, 'new' => $new_table];
+        }
+
+        // Update wp_options and wp_usermeta keys that contain prefix in meta keys
+        // These two tables have rows where option_name/meta_key start with old prefix:
+        // - {prefix}options: option_name like '{old_prefix}user_roles'
+        // - {prefix}usermeta: meta_key like '{old_prefix}%'
+        $options_table = $new_prefix . 'options';     // already renamed above
+        $usermeta_table = $new_prefix . 'usermeta';   // already renamed above
+
+        // Update option_name user_roles
+        $old_user_roles = $old_prefix . 'user_roles';
+        $new_user_roles = $new_prefix . 'user_roles';
+        $wpdb->query($wpdb->prepare(
+            "UPDATE `$options_table` SET option_name = %s WHERE option_name = %s",
+            $new_user_roles, $old_user_roles
+        ));
+
+        // Update all meta_key occurrences that start with old prefix
+        $wpdb->query($wpdb->prepare(
+            "UPDATE `$usermeta_table` SET meta_key = REPLACE(meta_key, %s, %s) WHERE meta_key LIKE %s",
+            $old_prefix, $new_prefix, $wpdb->esc_like($old_prefix) . '%'
+        ));
+
+        // Update wp-config.php $table_prefix
+        $wp_config = ABSPATH . 'wp-config.php';
+        if (!is_writable($wp_config)) {
+            // rollback tables if we cannot persist config
+            foreach (array_reverse($renamed) as $pair) {
+                $wpdb->query("RENAME TABLE `{$pair['new']}` TO `{$pair['old']}`");
+            }
+            return false;
+        }
+
+        $content = file_get_contents($wp_config);
+        // Try to replace existing $table_prefix assignment
+        $pattern = '/^\s*\$table_prefix\s*=\s*[\'"][^\'"]+[\'"]\s*;\s*$/m';
+        if (preg_match($pattern, $content)) {
+            $content = preg_replace($pattern, "\$table_prefix = '{$new_prefix}';", $content, 1);
+        } else {
+            // Append if not found (rare)
+            $content .= "\n\$table_prefix = '{$new_prefix}';\n";
+        }
+        $ok = file_put_contents($wp_config, $content);
+        if ($ok === false) {
+            // rollback tables if config write fails
+            foreach (array_reverse($renamed) as $pair) {
+                $wpdb->query("RENAME TABLE `{$pair['new']}` TO `{$pair['old']}`");
+            }
+            return false;
+        }
+
+        // Flush internal prefix and caches for current process
+        $wpdb->set_prefix($new_prefix);
+        wp_cache_flush();
+
+        return true;
+    }
+
 }
 
 // Global hooks tied to options set above

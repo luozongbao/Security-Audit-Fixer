@@ -18,6 +18,7 @@ class SAF_Scanner {
         $issues = array_merge($issues, $this->check_users_password_policies());
         $issues = array_merge($issues, $this->check_file_permissions());
         $issues = array_merge($issues, $this->check_security_headers());
+        $issues = array_merge($issues, $this->check_table_prefix());
 
         $summary = sprintf('%d potential issues found', count($issues));
 
@@ -249,4 +250,21 @@ class SAF_Scanner {
         );
         return $issues;
     }
+    
+    private function check_table_prefix() {
+        global $wpdb;
+        $issues = [];
+        $current = $wpdb->prefix;
+        if ($current === 'wp_') {
+            $issues[] = $this->issue(
+                'default_table_prefix',
+                'Default table prefix "wp_" detected',
+                'medium',
+                'Using the default "wp_" prefix is predictable. Change to a custom prefix like "site123_".',
+                'change_table_prefix'
+            );
+        }
+        return $issues;
+    }
+
 }
