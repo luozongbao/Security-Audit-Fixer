@@ -239,9 +239,8 @@ class SAF_Admin {
             wp_redirect(add_query_arg(['page' => 'saf_settings', 'applied' => $ok ? 1 : 0], admin_url('admin.php')));
             exit;
         }
-
+   
         // Default handling
-
         $ok = $fixer->apply_fix($fix_key, $args ?? []);
 
         if ($ok === 'NEED_SERVER_RULE') {
@@ -271,4 +270,6 @@ class SAF_Admin {
         wp_redirect(add_query_arg(['page' => 'saf_settings', 'saved' => 1], admin_url('admin.php')));
         exit;
     }
+
+
 }

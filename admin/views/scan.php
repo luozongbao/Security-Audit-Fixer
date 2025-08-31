@@ -47,6 +47,8 @@ if ($last && !empty($last->issues)) {
                   <button id="saf-change-prefix-btn" class="button button-primary">Apply Fix</button>
                 <?php elseif ($i['fix_key'] === 'set_custom_login_url'): ?>
                   <button type="button" class="button button-primary saf-open-login-slug-modal">Apply Fix</button>
+                <?php elseif ($i['fix_key'] === 'rename_admin_user'): ?>
+                  <button id="saf-rename-admin-btn" class="button button-primary">Apply Fix</button>
                 <?php else: ?>
                   <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
                     <?php wp_nonce_field('saf_apply_fix'); ?>
@@ -66,6 +68,26 @@ if ($last && !empty($last->issues)) {
   <?php endif; ?>
 </div>
 
+<!-- Modal markup -->
+<div id="saf-rename-admin-modal" class="saf-modal" style="display:none;">
+  <div class="saf-modal-content">
+    <h2>Rename "admin" User</h2>
+    <p>Choose a new username (cannot be “admin” and must be unique).</p>
+    <form id="saf-rename-admin-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+      <?php wp_nonce_field('saf_apply_fix'); ?>
+      <input type="hidden" name="action" value="saf_apply_fix" />
+      <input type="hidden" name="fix_key" value="rename_admin_user" />
+      <label for="saf-new-username"><strong>New username</strong></label><br/>
+      <input type="text" id="saf-new-username" name="new_username" required placeholder="e.g., siteadmin123" style="width: 300px;" />
+      <div id="saf-rename-error" style="color:#b32d2e; margin-top:6px; display:none;"></div>
+      <div style="margin-top:12px;">
+        <button type="submit" class="button button-primary">Confirm Rename</button>
+        <button type="button" id="saf-rename-cancel" class="button">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+<!-- Change prefix modal -->
 <div id="saf-change-prefix-modal" class="saf-modal" style="display:none;">
   <div class="saf-modal-content">
     <h2>Change Table Prefix</h2>
@@ -113,3 +135,17 @@ if ($last && !empty($last->issues)) {
   </div>
   <div class="saf-modal-backdrop"></div>
 </div>
+
+
+<!-- Nginx advisory modal -->
+<div id="saf-server-advice-modal" class="saf-modal" style="display:none;">
+  <div class="saf-modal-content">
+    <h2>Action Required on Your Server</h2>
+    <div id="saf-server-advice-body" style="white-space:pre-wrap; font-family:monospace;"></div>
+    <div style="margin-top:12px;">
+      <button type="button" id="saf-server-advice-close" class="button button-primary">OK, I’ll add this</button>
+    </div>
+  </div>
+  <div class="saf-modal-backdrop"></div>
+</div>
+

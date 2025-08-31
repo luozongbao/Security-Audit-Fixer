@@ -359,7 +359,7 @@ class SAF_Fixer {
         if (!file_exists($path)) return true;
         if (!is_writable($path)) return false;
         return @unlink($path);
-    }
+    }  
 
     private function handle_debug_log() {
         // 1) Delete or rotate wp-content/debug.log if exists

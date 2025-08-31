@@ -49,7 +49,6 @@
 $current_slug = saf_get_login_slug();
 $custom_login_url = $current_slug ? home_url('/' . $current_slug . '/') : '';
 ?>
-<h3>Custom Login URL</h3>
 <table class="form-table">
   <tr>
     <th scope="row">Status</th>
