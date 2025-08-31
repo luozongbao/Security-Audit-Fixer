@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Breach
+ * Plugin Name: Security Audit and Fixer
  * Plugin URI:  https://atipat.lorwongam.com/
  * Description: Scans your WordPress site for common vulnerabilities and offers suggestions or one-click fixes.
  * Version:     1.0.0
