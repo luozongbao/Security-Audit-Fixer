@@ -21,6 +21,7 @@ class SAF_Scanner {
         $issues = array_merge($issues, $this->check_table_prefix());
         $issues = array_merge($issues, $this->check_version_exposure());
         $issues = array_merge($issues, $this->check_exposed_files());
+        $issues = array_merge($issues, $this->check_default_login_urls());
 
         $summary = sprintf('%d potential issues found', count($issues));
 
@@ -369,5 +370,44 @@ class SAF_Scanner {
         // For others, flag 200/206.
         return in_array($status_code, [200, 206], true);
     }
+
+    private function check_default_login_urls() {
+        $issues = [];
+
+        // If already customized, do not flag
+        $slug = saf_get_login_slug();
+        if ($slug) return $issues;
+
+        $flag = false;
+
+        $login_status = $this->http_head_or_get_status('wp-login.php');
+        if (in_array($login_status, [200, 301, 302, 401, 403], true)) {
+            $flag = true;
+        }
+
+        $admin_status = $this->http_head_or_get_status('wp-admin/');
+        if (in_array($admin_status, [200, 301, 302, 401, 403], true)) {
+            $flag = true;
+        }
+
+        if ($flag) {
+            $issues[] = $this->issue(
+                'default_login_url_exposed',
+                'Default login URL is exposed',
+                'medium',
+                'Bots target /wp-login.php and unauthenticated /wp-admin. Change to a custom login URL to reduce attacks.',
+                'set_custom_login_url'
+            );
+        }
+
+        return $issues;
+    }
+
+    private function has_issue_key($issues, $key) {
+        foreach ($issues as $i) {
+            if (!empty($i['key']) && $i['key'] === $key) return true;
+        }
+        return false;
+}
 
 }

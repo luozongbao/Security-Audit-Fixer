@@ -178,6 +178,33 @@ class SAF_Admin {
             exit;
         }
 
+        if ($fix_key === 'set_custom_login_url') {
+            $slug_raw = isset($_POST['login_slug']) ? (string) wp_unslash($_POST['login_slug']) : '';
+            $slug = strtolower(trim($slug_raw));
+
+            $error = '';
+            if (!preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) {
+                $error = __('Please enter 3–64 characters (letters, numbers, dashes only).', 'security-audit-fixer');
+            } elseif (in_array($slug, ['wp-login','wp-admin','login','admin'], true)) {
+                $error = __('Please choose a less predictable slug.', 'security-audit-fixer');
+            }
+
+            if ($error) {
+                $url = add_query_arg([
+                    'page' => 'saf_fixes',
+                    'applied' => 0,
+                    'saf_login_slug_error' => rawurlencode($error),
+                    'saf_login_slug_value' => rawurlencode($slug_raw),
+                ], admin_url('admin.php'));
+                wp_redirect($url);
+                exit;
+            }
+
+            $ok = (new SAF_Fixer())->apply_fix($fix_key, ['login_slug' => $slug]);
+            wp_redirect(add_query_arg(['page' => 'saf_fixes', 'applied' => $ok ? 1 : 0], admin_url('admin.php')));
+            exit;
+        }        
+
         // Default handling
 
         $ok = $fixer->apply_fix($fix_key, $args ?? []);

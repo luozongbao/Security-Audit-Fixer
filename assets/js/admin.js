@@ -141,4 +141,14 @@
   });
 })(jQuery);
 
-
+(function($){
+  $(function(){
+    var $loginModal = $('#saf-login-slug-modal');
+    $(document).on('click', '.saf-open-login-slug-modal', function(){
+      $loginModal.show();
+    });
+    $(document).on('click', '.saf-close-login-slug-modal', function(){
+      $loginModal.hide();
+    });
+  });
+})(jQuery);

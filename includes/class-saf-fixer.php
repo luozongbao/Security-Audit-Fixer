@@ -68,6 +68,9 @@ class SAF_Fixer {
                 } else {
                     return 'NEED_SERVER_RULE';
                 }
+            case 'set_custom_login_url':
+                // Requires a slug via modal; handled in admin controller
+                return $this->enable_custom_login($args);    
             default:
                 return false;
         }
@@ -423,6 +426,79 @@ class SAF_Fixer {
         return file_put_contents($ht, $content . $rule) !== false;
     }
 
+    private function enable_custom_login($args) {
+        $slug = isset($args['login_slug']) ? strtolower(trim($args['login_slug'])) : '';
+        if (!preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) {
+            return false;
+        }
+        if (in_array($slug, ['wp-login', 'wp-admin', 'login', 'admin'], true)) {
+            return false;
+        }
+        if (!saf_set_login_slug($slug)) {
+            return false;
+        }
+        return true;
+    }
+
+    // Runtime enforcement hooks (call once from plugin bootstrap)
+    public static function enforce_custom_login_runtime() {
+        // Allow emergency disable by defining a constant in wp-config.php:
+        // define('SAF_DISABLE_LOGIN_REWRITE', true);
+        if (defined('SAF_DISABLE_LOGIN_REWRITE') && SAF_DISABLE_LOGIN_REWRITE) {
+            return;
+        }
+
+        add_action('init', function () {
+            $slug = saf_get_login_slug();
+            if (!$slug) return;
+
+            // 1) Replace login_url() to point to custom slug
+            add_filter('login_url', function ($login, $redirect, $force_reauth) use ($slug) {
+                $url = home_url('/' . $slug . '/');
+                if (!empty($redirect)) {
+                    $url = add_query_arg('redirect_to', rawurlencode($redirect), $url);
+                }
+                return $url;
+            }, 10, 3);
+
+            // 2) Handle requests: map custom slug to core login loader
+            add_action('template_redirect', function () use ($slug) {
+                if (is_admin()) return;
+
+                $req = trim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
+                $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+                // If someone hits the custom slug, load wp-login.php logic
+                if (strcasecmp($req, $slug) === 0) {
+                    // Load core login without exposing the filename
+                    require_once ABSPATH . 'wp-login.php';
+                    exit;
+                }
+
+                // Block GET access to /wp-login.php (return 404) but allow POST to keep plugin compatibility
+                $is_wp_login = preg_match('~/wp-login\.php$~i', $_SERVER['REQUEST_URI'] ?? '') === 1;
+
+                if ($is_wp_login && strtoupper($method) === 'GET') {
+                    status_header(404);
+                    nocache_headers();
+                    echo '<!doctype html><html><head><meta charset="utf-8"><title>Not Found</title></head><body>404 Not Found</body></html>';
+                    exit;
+                }
+
+                // Optional: soften /wp-admin for unauthenticated users to 404 instead of redirecting to default login
+                if ($is_wp_login === 0 && preg_match('~^wp-admin/?($|[?#])~i', $req)) {
+                    if (!is_user_logged_in()) {
+                        // 404 instead of redirecting to login
+                        status_header(404);
+                        nocache_headers();
+                        echo '<!doctype html><html><head><meta charset="utf-8"><title>Not Found</title></head><body>404 Not Found</body></html>';
+                        exit;
+                    }
+                }
+            }, 0);
+        }, 0);
+    }    
+
 }
 
 // Global hooks tied to options set above
@@ -471,3 +547,9 @@ add_action('init', function () {
 
 // Also ensure the generator tag is blank if some themes/plugins force it:
 add_filter('the_generator', '__return_empty_string', 99);
+
+add_action('plugins_loaded', function () {
+    if (class_exists('SAF_Fixer')) {
+        SAF_Fixer::enforce_custom_login_runtime();
+    }
+});

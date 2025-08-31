@@ -37,4 +37,19 @@ function saf_server_is_nginx() {
     return strpos($ss, 'nginx') !== false;
 }
 
+// Option accessors
+function saf_get_login_slug() {
+    $slug = get_option('saf_login_slug', '');
+    $slug = trim($slug, "/ \t\n\r\0\x0B");
+    // Minimal validation: letters, numbers, dashes only
+    if ($slug && preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) {
+        return strtolower($slug);
+    }
+    return '';
+}
+function saf_set_login_slug($slug) {
+    $slug = trim($slug, "/ \t\n\r\0\x0B");
+    if (!preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) return false;
+    return update_option('saf_login_slug', strtolower($slug));
+}
 
