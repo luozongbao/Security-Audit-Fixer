@@ -3,6 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 class SAF_Scanner {
 
+
     public function run_full_scan() {
         global $wpdb;
         $issues = [];

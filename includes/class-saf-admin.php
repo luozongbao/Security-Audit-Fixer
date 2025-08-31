@@ -205,6 +205,41 @@ class SAF_Admin {
             exit;
         }        
 
+        // Custom login URL flow (from Settings page)        
+        if ($fix_key === 'set_custom_login_url') {
+            // Disable request from Settings: remove the option and finish
+            if (!empty($_POST['disable_login_slug'])) {
+                saf_disable_login_slug(); // deletes the option
+                wp_redirect(add_query_arg(['page' => 'saf_settings', 'applied' => 1], admin_url('admin.php')));
+                exit;
+            }
+
+            // Save/update
+            $slug_raw = isset($_POST['login_slug']) ? (string) wp_unslash($_POST['login_slug']) : '';
+            $slug = strtolower(trim($slug_raw));
+
+            $error = '';
+            if (!preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) {
+                $error = __('Please enter 3–64 characters (letters, numbers, dashes only).', 'security-audit-fixer');
+            } elseif (in_array($slug, ['wp-login','wp-admin','login','admin'], true)) {
+                $error = __('Please choose a less predictable slug.', 'security-audit-fixer');
+            }
+
+            if ($error) {
+                $url = add_query_arg([
+                    'page' => 'saf_settings',
+                    'applied' => 0,
+                    'saf_login_slug_error' => rawurlencode($error),
+                ], admin_url('admin.php'));
+                wp_redirect($url);
+                exit;
+            }
+
+            $ok = saf_set_login_slug($slug);
+            wp_redirect(add_query_arg(['page' => 'saf_settings', 'applied' => $ok ? 1 : 0], admin_url('admin.php')));
+            exit;
+        }
+
         // Default handling
 
         $ok = $fixer->apply_fix($fix_key, $args ?? []);

@@ -40,16 +40,25 @@ function saf_server_is_nginx() {
 // Option accessors
 function saf_get_login_slug() {
     $slug = get_option('saf_login_slug', '');
-    $slug = trim($slug, "/ \t\n\r\0\x0B");
-    // Minimal validation: letters, numbers, dashes only
+    $slug = trim((string)$slug, "/ \t\n\r\0\x0B");
     if ($slug && preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) {
         return strtolower($slug);
     }
     return '';
 }
+
 function saf_set_login_slug($slug) {
-    $slug = trim($slug, "/ \t\n\r\0\x0B");
+    $slug = trim((string)$slug, "/ \t\n\r\0\x0B");
     if (!preg_match('/^[a-z0-9-]{3,64}$/i', $slug)) return false;
+    if (in_array(strtolower($slug), ['wp-login','wp-admin','login','admin'], true)) return false;
     return update_option('saf_login_slug', strtolower($slug));
 }
+
+function saf_disable_login_slug() {
+    return delete_option('saf_login_slug');
+}
+
+
+
+
 
